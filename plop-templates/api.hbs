@@ -1,0 +1,16 @@
+import { axiosService } from '../axiosService';
+import { IPagingItems, ITableSearchParams } from '@/interfaces';
+import { {{camelCase name}}Endpoints } from './{{camelCase name}}.endpoint';
+
+export interface I{{pascalCase name}} {
+  id: string | number;
+  // TODO: define {{pascalCase name}} fields
+}
+
+export const {{camelCase name}}Api = {
+  list: (params?: ITableSearchParams) =>
+    axiosService.get<IPagingItems<I{{pascalCase name}}>>(
+      {{camelCase name}}Endpoints.LIST,
+      { params }
+    ),
+};

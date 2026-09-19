@@ -1,0 +1,13 @@
+{
+  "emailRequired": "Email is required",
+  "emailInvalid": "Please enter a valid email address",
+  "passwordRequired": "Password is required",
+  "passwordMin": "Password must be at least 8 characters",
+  "passwordMax": "Password must be at most 32 characters",
+  "passwordUppercase": "Password must contain at least one uppercase letter",
+  "passwordLowercase": "Password must contain at least one lowercase letter",
+  "passwordNumber": "Password must contain at least one number",
+  "passwordSymbol": "Password must contain at least one symbol",
+  "passwordMismatch": "Passwords do not match",
+  "fullNameRequired": "Full name is required"
+}

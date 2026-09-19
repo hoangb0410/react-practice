@@ -1,0 +1,16 @@
+{
+  "appName": "Ứng dụng của tôi",
+  "loading": "Đang tải...",
+  "submit": "Gửi",
+  "cancel": "Hủy",
+  "save": "Lưu",
+  "delete": "Xóa",
+  "edit": "Chỉnh sửa",
+  "back": "Quay lại",
+  "next": "Tiếp theo",
+  "success": "Thành công",
+  "somethingWentWrong": "Có lỗi xảy ra. Vui lòng thử lại.",
+  "confirm": "Xác nhận",
+  "yes": "Có",
+  "no": "Không"
+}

@@ -1,0 +1,29 @@
+import { useTranslation } from 'react-i18next';
+import styled from 'styled-components';
+import { AppLoader } from '@/components';
+import { use{{pascalCase name}}ListQuery } from '@/react-query';
+
+export const {{pascalCase name}}List = () => {
+  const { t } = useTranslation();
+  const { data, isLoading } = use{{pascalCase name}}ListQuery();
+
+  if (isLoading) return <AppLoader fullscreen={false} />;
+
+  return (
+    <Wrapper>
+      <Heading>{t('{{camelCase name}}List', '{{pascalCase name}} list')}</Heading>
+      <pre>{JSON.stringify(data?.data ?? [], null, 2)}</pre>
+    </Wrapper>
+  );
+};
+
+const Wrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+`;
+
+const Heading = styled.h2`
+  margin: 0;
+  color: ${({ theme }) => theme.colors.text};
+`;

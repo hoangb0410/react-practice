@@ -1,0 +1,16 @@
+{
+  "appName": "My App",
+  "loading": "Loading...",
+  "submit": "Submit",
+  "cancel": "Cancel",
+  "save": "Save",
+  "delete": "Delete",
+  "edit": "Edit",
+  "back": "Back",
+  "next": "Next",
+  "success": "Success",
+  "somethingWentWrong": "Something went wrong. Please try again.",
+  "confirm": "Confirm",
+  "yes": "Yes",
+  "no": "No"
+}

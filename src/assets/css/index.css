@@ -1,0 +1,31 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, sans-serif;
+  color: #3d2935;
+  background: #fff5f8;
+}
+
+::selection {
+  background: #fbcfe8;
+  color: #c2185b;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font-family: inherit;
+}

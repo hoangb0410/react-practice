@@ -1,0 +1,7 @@
+export const {{camelCase name}}Endpoints = {
+  LIST: '/api/{{kebabCase name}}',
+  DETAIL: (id: string | number) => `/api/{{kebabCase name}}/${id}`,
+  CREATE: '/api/{{kebabCase name}}',
+  UPDATE: (id: string | number) => `/api/{{kebabCase name}}/${id}`,
+  DELETE: (id: string | number) => `/api/{{kebabCase name}}/${id}`,
+} as const;

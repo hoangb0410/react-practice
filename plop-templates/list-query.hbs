@@ -1,0 +1,9 @@
+import { useQuery } from '@tanstack/react-query';
+import { {{camelCase name}}Api } from '@/api';
+import { ITableSearchParams } from '@/interfaces';
+
+export const use{{pascalCase name}}ListQuery = (params?: ITableSearchParams) =>
+  useQuery({
+    queryKey: ['{{kebabCase name}}', 'list', params],
+    queryFn: () => {{camelCase name}}Api.list(params),
+  });
