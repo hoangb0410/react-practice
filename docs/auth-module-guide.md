@@ -62,7 +62,8 @@
 | `src/redux/` (store, user slice, persist, hooks)    | 3    | Đọc hiểu, không sửa                                |
 | `src/api/axiosInstance.ts`, `axiosService.ts`       | 2    | Sửa 2 chỗ: header ngôn ngữ và cờ `_skipAuthLogout` |
 | `src/api/__tests__/axiosInstance.test.ts`           | 2    | Sửa cho khớp sau khi đổi header                    |
-| `src/constants/auth.ts`                             | 2    | Đổi đường dẫn refresh                              |
+| `src/constants/auth.ts`                             | 2    | Đổi đường dẫn refresh, dùng lại `API_PREFIX`       |
+| `src/constants/common.ts`                           | 2    | Thêm hằng `API_PREFIX`                             |
 | `src/constants/routes.ts` (`ROUTES` chỉ có 2 key)   | 1    | Thêm các route auth và route theo role             |
 | `src/interfaces/user.interface.ts` (`IUserInfo`)    | 1    | Sửa cho khớp user của backend                      |
 | `src/interfaces/common.interface.ts`                | 1    | Đọc, dùng `IAppResponse`                           |
@@ -193,7 +194,9 @@ Backend có 3 role: `reader`, `creator`, `admin`. Sau login, FE gọi `getDefaul
 
 ## 2. Kiến thức nền cần nắm
 
-Mỗi mục đủ để bạn đọc được code ở bước tương ứng. Không cần thuộc, cần hiểu ý.
+Mỗi mục dưới đây là **bản tóm tắt một dòng**, đủ cho người đã biết React đọc được code ở bước tương ứng.
+
+> 🧭 **Nếu bạn mới học React**, mục này quá mỏng. Mở [`react-fundamentals.md`](./react-fundamentals.md): file đó giải thích từ đầu mọi khái niệm ở đây (`useState` là gì, vì sao `useEffect` cần dependency array, `Controller` làm gì, Redux khác React Query ở đâu, cookie HttpOnly là gì…), có ví dụ lấy thẳng từ module auth, và có bảng "bước nào cần đọc mục nào" ở cuối. Đọc đúng mục cần cho bước sắp làm, rồi quay lại đây.
 
 ### 2.1. React cơ bản
 
@@ -504,13 +507,30 @@ src/api/index.ts                               [S]
 
 Base đã có sẵn `axiosInstance.ts` gần đầy đủ: `withCredentials`, unwrap `res.data`, hàng đợi refresh khi 401, phát sự kiện đăng xuất. Bạn không viết lại, chỉ sửa ba chỗ.
 
-#### 2.1. Đổi đường dẫn refresh
+#### 2.1. Hằng `API_PREFIX` và đường dẫn refresh
+
+Mọi endpoint của `pink-story-api` đều bắt đầu bằng `/api` (backend đặt `app.setGlobalPrefix`). Viết cứng chuỗi đó ở từng dòng thì vừa lặp vừa dễ gõ sai, nên tách ra một hằng dùng chung ngay từ đầu.
+
+Thêm vào `src/constants/common.ts` (file đã có sẵn và đã được barrel export, nên không phải sửa `constants/index.ts`):
+
+```ts
+// src/constants/common.ts — thêm dòng này, giữ nguyên phần còn lại
+export const API_PREFIX = '/api';
+```
+
+Rồi sửa `src/constants/auth.ts` cho dùng lại nó, đồng thời đổi đường dẫn refresh cho khớp backend:
 
 ```ts
 // src/constants/auth.ts
-export const AUTH_REFRESH_PATH = '/api/auth/refresh'; // base để '/api/auth/refresh-token'
-export const AUTH_PATH_PREFIX = '/api/auth/'; // giữ nguyên
+import { API_PREFIX } from './common'; // KHÔNG import từ '@/constants'
+
+export const AUTH_REFRESH_PATH = `${API_PREFIX}/auth/refresh`; // base để '/api/auth/refresh-token'
+export const AUTH_PATH_PREFIX = `${API_PREFIX}/auth/`; // giữ nguyên giá trị
 ```
+
+⚠️ Chú ý dòng import: phải là `'./common'`, **không** phải `'@/constants'`. `constants/index.ts` đang export chính `auth.ts`, nên trỏ ngược lại vào barrel sẽ tạo import vòng (`index → auth → index`). Trong cùng một thư mục thì luôn import thẳng vào file.
+
+💡 Vì sao đặt ở `common.ts` chứ không tạo `constants/api.ts` mới? Chỉ để đỡ một file và đỡ một dòng barrel. Nếu sau này hằng liên quan tới HTTP nhiều lên, tách ra file riêng cũng được, nhớ thêm `export * from './api';` vào `constants/index.ts`.
 
 #### 2.2. Gửi ngôn ngữ bằng header thay cho query
 
@@ -534,7 +554,11 @@ apiClient.interceptors.request.use((req) => {
 
 #### 2.3. Cờ `_skipAuthLogout`
 
-Không phải mọi 401 đều nên đá user ra (xem 5.8). Thêm điều kiện vào nhánh `catch` của luồng refresh:
+**Cờ này là gì.** Một thuộc tính **do codebase tự đặt ra**, không phải của axios, gắn lên config của **một** request để nói: "nếu làm mới token thất bại, đừng đăng xuất người dùng, tôi tự lo."
+
+Hành vi mặc định đang là: request nào bị 401 thì interceptor gọi `/api/auth/refresh`; refresh cũng hỏng thì coi như phiên hết thật và phát `emitAuthLogout()`, kéo theo xóa Redux và đẩy về `/sign-in`. Đúng với phần lớn request. Nhưng ở bước 12, `AuthBootstrap` gọi `GET /api/users` **mỗi lần mở app** chỉ để lấy profile đầy đủ. Đó là request thăm dò, không phải việc người dùng yêu cầu; mạng chập chờn lúc khởi động mà đá người ta ra màn hình đăng nhập thì quá tay. Nên riêng request đó xin miễn (xem thêm 5.8).
+
+Thêm điều kiện vào nhánh `catch` của luồng refresh:
 
 ```ts
 } catch (refreshError) {
@@ -555,6 +579,12 @@ declare module 'axios' {
 }
 ```
 
+Bỏ qua bước khai báo này thì TS báo `Property '_skipAuthLogout' does not exist on type 'AxiosRequestConfig'`. Lý do và cơ chế "bổ sung kiểu cho thư viện" nằm ở [mục 1.7 của `react-fundamentals.md`](./react-fundamentals.md#17-file-dts-và-bổ-sung-kiểu-cho-thư-viện).
+
+💡 **Cờ đi từ đâu tới đâu.** Tham số cuối của `axiosService.get/post` là config **của riêng request đó**. axios mang nguyên object config theo suốt vòng đời request, và khi lỗi thì gắn lại vào `error.config`. Interceptor lấy ra thành `originalRequest`, nên nó đọc được cờ mà bạn đã gắn từ lúc gọi. Không gắn thì giá trị là `undefined`, `!undefined` là `true`, và logout chạy như cũ. Cờ `_retry` ngay trên cũng cùng kỹ thuật nhưng khác mục đích: đánh dấu "request này đã thử lại một lần rồi" để tránh vòng refresh vô hạn. Dấu gạch dưới đầu tên là quy ước nói "của chúng ta, không phải của axios".
+
+> ⚠️ **Sửa xong bạn sẽ thấy app không đổi gì.** Đúng vậy: chưa request nào gắn cờ nên nhánh logout vẫn chạy y như trước. Nó chỉ bắt đầu có nghĩa từ mục 2.6 (`getCurrentUserProfile` gắn `_skipAuthLogout: true`) và thực sự dùng tới ở bước 12. Guide thêm sớm ở đây vì đang sửa dở `axiosInstance.ts`, làm một lần cho xong.
+
 #### 2.4. Sửa bài test có sẵn
 
 `src/api/__tests__/axiosInstance.test.ts` đang kiểm tra query `lang` và chuỗi `refresh-token`. Sau khi đổi, test sẽ đỏ. Sửa ba chỗ:
@@ -562,6 +592,8 @@ declare module 'axios' {
 1. Mock `@/constants`: `AUTH_REFRESH_PATH: '/api/auth/refresh'`.
 2. Hai chỗ `'refresh-token'` (một trong adapter của test "does NOT auto-refresh", một trong `expect.stringContaining`) → `'/api/auth/refresh'`.
 3. Thay test đầu tiên:
+
+> Mock ở đây vẫn ghi chuỗi đầy đủ, **không** cần thêm `API_PREFIX`. Lý do: `vi.mock('@/constants', ...)` thay cả module bằng object bạn viết, và `axiosInstance.ts` chỉ đọc `AUTH_REFRESH_PATH`, `AUTH_PATH_PREFIX`, `config` chứ không đọc `API_PREFIX`. Chỉ khi nào bạn cho `axiosInstance.ts` import thêm hằng nào từ `@/constants` thì mới phải khai báo hằng đó trong mock, nếu không giá trị sẽ là `undefined`.
 
 ```ts
 it('sends Accept-Language header from i18n', async () => {
@@ -584,17 +616,29 @@ Interceptor đã unwrap nên giá trị thật không còn là `AxiosResponse`. 
 
 ```ts
 // src/api/auth/auth.endpoint.ts — khớp auth.controller.ts và users.controller.ts
+import { API_PREFIX } from '@/constants';
+
+const AUTH = `${API_PREFIX}/auth`;
+
 export enum EAuthEndpoint {
-  SIGN_IN = '/api/auth/login',
-  REGISTER = '/api/auth/register',
-  VERIFY_REGISTER = '/api/auth/verify-register',
-  SIGN_OUT = '/api/auth/logout',
-  GET_NEW_TOKENS = '/api/auth/refresh',
-  FORGOT_PASSWORD = '/api/auth/forgot-password',
-  RESET_PASSWORD = '/api/auth/reset-password',
-  GET_CURRENT_USER_PROFILE = '/api/users', // GET không có id = user hiện tại
+  SIGN_IN = `${AUTH}/login`,
+  REGISTER = `${AUTH}/register`,
+  VERIFY_REGISTER = `${AUTH}/verify-register`,
+  SIGN_OUT = `${AUTH}/logout`,
+  GET_NEW_TOKENS = `${AUTH}/refresh`,
+  FORGOT_PASSWORD = `${AUTH}/forgot-password`,
+  RESET_PASSWORD = `${AUTH}/reset-password`,
+  GET_CURRENT_USER_PROFILE = `${API_PREFIX}/users`, // GET không có id = user hiện tại
 }
 ```
+
+💡 **Enum mà dùng được template literal?** Được, nhưng chỉ từ TypeScript 5 trở đi; dự án đang dùng TS 6 nên yên tâm. Nhiều bài viết cũ trên mạng bảo string enum bắt buộc phải là chuỗi viết cứng, đó là thông tin của các bản TS cũ. Kiểu suy ra vẫn chính xác: `EAuthEndpoint.SIGN_IN` có kiểu `'/api/auth/login'` chứ không tụt xuống `string`.
+
+Hai tầng hằng là có chủ đích. `API_PREFIX` dùng chung cho mọi module; `AUTH` chỉ sống trong file này, gom riêng nhóm `/auth`. Dòng `GET_CURRENT_USER_PROFILE` không thuộc nhóm đó nên ghép thẳng từ `API_PREFIX`.
+
+> Ở đây import từ `'@/constants'` được, khác với `constants/auth.ts` ở bước 2.1, vì file này nằm **ngoài** thư mục `constants` nên không tạo import vòng.
+
+Các module sau (`category`, `story`…) làm y hệt: import `API_PREFIX`, đặt một hằng nhóm, rồi ghép. Nếu bạn dùng `yarn generate:module`, sửa `plop-templates/endpoint.hbs` cho khớp mẫu này, nếu không file sinh ra sẽ lại viết cứng `/api/`.
 
 ```ts
 // src/api/auth/authApi.ts
@@ -2651,7 +2695,26 @@ Hai nguồn, một ngôn ngữ: vì FE gửi `Accept-Language` chính là `i18n.
 
 ### 5.8. `_skipAuthLogout`
 
-Không phải mọi 401 đều nên đá user ra. `AuthBootstrap` là request "thăm dò"; nếu nó thất bại vì mạng chập chờn lúc khởi động mà đá logout thì rất khó chịu. Cờ này cho từng request quyền nói "tôi tự xử lý thất bại của mình".
+Không phải mọi 401 đều nên đá user ra. `AuthBootstrap` là request "thăm dò" chạy mỗi lần mở app; nếu nó thất bại vì mạng chập chờn lúc khởi động mà đá logout thì rất khó chịu, trong khi phiên có thể vẫn còn tốt. Cờ này cho từng request quyền nói "tôi tự xử lý thất bại của mình".
+
+Đường đi của cờ, đọc từ nơi gắn tới nơi dùng:
+
+```
+authApi.getCurrentUserProfile()           gắn { _skipAuthLogout: true } vào config
+   │
+axios giữ nguyên object config đó suốt vòng đời request
+   │  GET /api/users → 401
+   ▼
+interceptor: error.config chính là object cũ → originalRequest
+   │  refresh cũng 401
+   ▼
+if (!originalRequest._skipAuthLogout) emitAuthLogout();   ← true nên BỎ QUA logout
+```
+
+Hai hệ quả cần nhớ:
+
+- Request **không** gắn cờ thì giá trị là `undefined`, `!undefined` là `true`, nên logout chạy bình thường. Đây là mặc định an toàn: quên gắn thì mất tính năng "bỏ qua", không phải mất tính năng bảo vệ.
+- Vì `AuthBootstrap` không tự đăng xuất, trạng thái lệch (Redux có user, cookie đã chết) vẫn còn sau khi nó thất bại. App tiếp tục chạy với dữ liệu persist hơi cũ, và request thật tiếp theo sẽ đá logout đúng lúc. Bài tập 6.5 bàn có nên phân biệt 401 thật với lỗi mạng để xử lý khéo hơn không.
 
 ### 5.9. zod thay Yup: khác ở đâu, giống ở đâu
 
@@ -2686,29 +2749,31 @@ Giống nhau: message là key i18n, UI gọi `t(key)`; `mode: 'onTouched'`; `Con
 
 ## 7. Lỗi thường gặp
 
-| Triệu chứng                                                   | Nguyên nhân                                                             | Cách sửa                                                |
-| ------------------------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------- |
-| `yarn` báo `The engine "node" is incompatible ... Got "20.x"` | Chưa `nvm use`                                                          | `nvm use` (base ghim Node 22 trong `.nvmrc`)            |
-| CORS: `Access-Control-Allow-Origin` không khớp                | FE không chạy ở `http://localhost:4001`                                 | Kiểm tra `.env` có `VITE_PORT=4001`, restart `yarn dev` |
-| Bấm Đăng nhập, Network không có request                       | `VITE_API_URL` thiếu `http://` (env.ts sẽ throw lúc boot)               | Sửa `.env`, restart                                     |
-| Login 200 nhưng request sau 401, không thấy cookie            | Thiếu `withCredentials: true`                                           | Kiểm tra `axiosInstance`                                |
-| Cookie có nhưng request `/api/users` vẫn 401                  | Cookie `SameSite=Strict` + mở FE bằng `127.0.0.1` thay `localhost`      | Dùng đúng `http://localhost:4001`                       |
-| Form login không cho gửi với tài khoản seed `Password123`     | zod bắt ký tự đặc biệt, BE không bắt                                    | Bài tập 6.1                                             |
-| Refresh luôn thất bại                                         | `AUTH_REFRESH_PATH` còn là `/api/auth/refresh-token`                    | Sửa `src/constants/auth.ts` (bước 2.1)                  |
-| BE trả message tiếng Anh dù đang chọn VI                      | Còn gửi `?lang=` thay header `Accept-Language`                          | Bước 2.2                                                |
-| Bài test `axiosInstance` đỏ                                   | Đã đổi header/path nhưng chưa sửa test                                  | Bước 2.4                                                |
-| Toast thành công hiện "Success" thay câu tiếng Việt           | `showServerSuccessMsg` còn đọc `data.message`                           | Bước 6.2                                                |
-| TS báo lỗi ở `resolver: zodResolver(...)`                     | Schema và interface form lệch nhau (ví dụ `role` là `EUserRole` đầy đủ) | Sửa interface về `READER \| CREATOR` hoặc sửa schema    |
-| `passwordMismatch` không hiện                                 | `.refine` đặt trên field thay vì trên object, hoặc thiếu `path`         | Xem `registerValidationSchema` bước 5                   |
-| Vào `/verify-otp` bị đẩy về `/sign-up` sau khi F5             | `location.state` mất khi reload                                         | Hành vi có chủ đích, xem 5.2                            |
-| `useNavigate() may be used only in the context of a <Router>` | Hook dùng `useNavigate` nằm ngoài `RouterProvider`                      | Đặt vào `RootLayout` hoặc component con của nó          |
-| `No QueryClient set` khi mount `AuthBootstrap`                | Đặt `AuthBootstrap` ngoài `QueryClientProvider`                         | Bước 12: bọc bên trong provider                         |
-| Register gửi `firstName: ""` bị BE từ chối                    | `IsOptional` không bỏ qua chuỗi rỗng                                    | Chuyển chuỗi rỗng thành `undefined` như bước 9.1        |
-| `Register` không lazy load được / trắng trang                 | Chưa export từ `modules/auth/index.ts`                                  | Kiểm tra barrel                                         |
-| `yarn typecheck` đỏ ở `authElements.tsx` sau bước 7           | `@/modules/auth` chưa tồn tại                                           | Bình thường tới hết bước 8                              |
-| Commit báo `lint-staged requires Git 2.32.0`                  | Git trên máy quá cũ                                                     | Cài Git mới                                             |
-| Link trong email reset trỏ sai host                           | `frontendBaseUrl` của backend không phải `http://localhost:4001`        | Sửa `.env` của backend                                  |
-| Gửi lại link reset → 429                                      | Cooldown của BE                                                         | Hành vi đúng, chờ hết cooldown                          |
+| Triệu chứng                                                              | Nguyên nhân                                                             | Cách sửa                                                |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------- |
+| `yarn` báo `The engine "node" is incompatible ... Got "20.x"`            | Chưa `nvm use`                                                          | `nvm use` (base ghim Node 22 trong `.nvmrc`)            |
+| CORS: `Access-Control-Allow-Origin` không khớp                           | FE không chạy ở `http://localhost:4001`                                 | Kiểm tra `.env` có `VITE_PORT=4001`, restart `yarn dev` |
+| Bấm Đăng nhập, Network không có request                                  | `VITE_API_URL` thiếu `http://` (env.ts sẽ throw lúc boot)               | Sửa `.env`, restart                                     |
+| Login 200 nhưng request sau 401, không thấy cookie                       | Thiếu `withCredentials: true`                                           | Kiểm tra `axiosInstance`                                |
+| Cookie có nhưng request `/api/users` vẫn 401                             | Cookie `SameSite=Strict` + mở FE bằng `127.0.0.1` thay `localhost`      | Dùng đúng `http://localhost:4001`                       |
+| Form login không cho gửi với tài khoản seed `Password123`                | zod bắt ký tự đặc biệt, BE không bắt                                    | Bài tập 6.1                                             |
+| Refresh luôn thất bại                                                    | `AUTH_REFRESH_PATH` còn là `/api/auth/refresh-token`                    | Sửa `src/constants/auth.ts` (bước 2.1)                  |
+| BE trả message tiếng Anh dù đang chọn VI                                 | Còn gửi `?lang=` thay header `Accept-Language`                          | Bước 2.2                                                |
+| Bài test `axiosInstance` đỏ                                              | Đã đổi header/path nhưng chưa sửa test                                  | Bước 2.4                                                |
+| Toast thành công hiện "Success" thay câu tiếng Việt                      | `showServerSuccessMsg` còn đọc `data.message`                           | Bước 6.2                                                |
+| `Property '_skipAuthLogout' does not exist on type 'AxiosRequestConfig'` | Đã sửa `axiosInstance.ts` nhưng chưa khai báo cờ trong `global.d.ts`    | Bước 2.3, nửa sau                                       |
+| Sửa `global.d.ts` rồi mà VS Code vẫn gạch đỏ                             | TS server trong editor còn giữ cache file khai báo cũ                   | Command Palette → "TypeScript: Restart TS Server"       |
+| TS báo lỗi ở `resolver: zodResolver(...)`                                | Schema và interface form lệch nhau (ví dụ `role` là `EUserRole` đầy đủ) | Sửa interface về `READER \| CREATOR` hoặc sửa schema    |
+| `passwordMismatch` không hiện                                            | `.refine` đặt trên field thay vì trên object, hoặc thiếu `path`         | Xem `registerValidationSchema` bước 5                   |
+| Vào `/verify-otp` bị đẩy về `/sign-up` sau khi F5                        | `location.state` mất khi reload                                         | Hành vi có chủ đích, xem 5.2                            |
+| `useNavigate() may be used only in the context of a <Router>`            | Hook dùng `useNavigate` nằm ngoài `RouterProvider`                      | Đặt vào `RootLayout` hoặc component con của nó          |
+| `No QueryClient set` khi mount `AuthBootstrap`                           | Đặt `AuthBootstrap` ngoài `QueryClientProvider`                         | Bước 12: bọc bên trong provider                         |
+| Register gửi `firstName: ""` bị BE từ chối                               | `IsOptional` không bỏ qua chuỗi rỗng                                    | Chuyển chuỗi rỗng thành `undefined` như bước 9.1        |
+| `Register` không lazy load được / trắng trang                            | Chưa export từ `modules/auth/index.ts`                                  | Kiểm tra barrel                                         |
+| `yarn typecheck` đỏ ở `authElements.tsx` sau bước 7                      | `@/modules/auth` chưa tồn tại                                           | Bình thường tới hết bước 8                              |
+| Commit báo `lint-staged requires Git 2.32.0`                             | Git trên máy quá cũ                                                     | Cài Git mới                                             |
+| Link trong email reset trỏ sai host                                      | `frontendBaseUrl` của backend không phải `http://localhost:4001`        | Sửa `.env` của backend                                  |
+| Gửi lại link reset → 429                                                 | Cooldown của BE                                                         | Hành vi đúng, chờ hết cooldown                          |
 
 ---
 
@@ -2734,7 +2799,8 @@ src/
 │   ├── layouts/AppLayout.tsx         [S] UserMenu / nút Đăng nhập
 │   ├── layouts/RootLayout.tsx        [S] bọc AuthBootstrap
 │   └── one-offs/{AuthBootstrap.tsx,index.ts}              [M] 🟡
-├── constants/auth.ts                 [S] đổi path refresh
+├── constants/common.ts               [S] thêm API_PREFIX
+├── constants/auth.ts                 [S] đổi path refresh, dùng API_PREFIX
 ├── constants/routes.ts               [S] thêm 7 route
 ├── enums/{user,index}.ts             [M] EUserRole
 ├── hooks/useAppToast.tsx             [S] fallback cho success
