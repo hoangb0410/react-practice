@@ -1292,7 +1292,30 @@ export * from './authElements';
 export * from './appElements';
 ```
 
-> Trước khi làm bước 8, `import('@/modules/auth')` chưa tồn tại nên `yarn typecheck` sẽ đỏ ở `authElements.tsx`. Tạm thời comment ba dòng đó (và các route dùng chúng) nếu bạn muốn checkpoint 7 sạch, hoặc chấp nhận đỏ đến hết bước 8.
+⚠️ **`@/modules/auth` chưa tồn tại ở thời điểm này**, nó được dựng ở bước 8. Nên `yarn typecheck` sẽ đỏ. Cách gọn nhất là tạo trước ba trang rỗng để bước 7 chạy được ngay, rồi bước 8 chỉ việc thay ruột:
+
+```tsx
+// src/modules/auth/pages/SignIn.tsx
+export const SignIn = () => <div>SignIn</div>;
+
+// src/modules/auth/pages/Register.tsx
+export const Register = () => <div>Register</div>;
+
+// src/modules/auth/pages/VerifyOtp.tsx
+export const VerifyOtp = () => <div>VerifyOtp</div>;
+```
+
+```ts
+// src/modules/auth/pages/index.ts
+export * from './SignIn';
+export * from './Register';
+export * from './VerifyOtp';
+
+// src/modules/auth/index.ts
+export * from './pages';
+```
+
+Làm vậy bạn kiểm tra được điều hướng ở Checkpoint 7 một cách thật sự: vào `/sign-in` phải thấy chữ "SignIn", chứ không phải nhìn code rồi đoán. Bước 8 sẽ thêm `hooks/`, `styled/` và viết lại nội dung ba trang này.
 
 #### 7.7. Cây route
 
