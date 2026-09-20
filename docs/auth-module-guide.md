@@ -708,7 +708,19 @@ export * from './axiosService';
 export * from './auth';
 ```
 
-**✅ Checkpoint 2:** `yarn test:run` xanh (kể cả bài `axiosInstance` vừa sửa). Chạy `yarn dev` (port 4001) và backend. Trong Console của trình duyệt:
+**✅ Checkpoint 2**
+
+Mục tiêu của checkpoint này: chứng minh tầng HTTP đã nối thông tới backend **trước khi** bạn dựng giao diện. Nếu đợi tới lúc có form đăng nhập mới thử, lỗi có thể nằm ở form, ở validate, ở Redux hay ở axios, và bạn sẽ không biết bắt đầu tìm từ đâu. Gọi thẳng `authApi` từ Console loại bỏ hết các tầng trên.
+
+**Phần 1: test tự động.** Chạy `yarn test:run`, phải xanh hết, kể cả bài `axiosInstance` bạn vừa sửa ở mục 2.4.
+
+**Phần 2: gọi thật vào backend.** Làm theo đúng thứ tự:
+
+1. Chạy backend `pink-story-api` (port 3000) ở một cửa sổ terminal.
+2. Chạy `yarn dev` ở cửa sổ khác. Terminal phải in ra `http://localhost:4001`.
+3. Mở `http://localhost:4001` bằng trình duyệt. Trang trống cũng không sao, ta chỉ cần trang này để có chỗ chạy JavaScript.
+4. Mở DevTools: `Cmd+Option+I` trên macOS, hoặc `F12`. Chọn tab **Console**.
+5. Dán đoạn dưới rồi Enter:
 
 ```js
 const { authApi } = await import('/src/api/index.ts');
@@ -717,7 +729,56 @@ authApi
   .then(console.log, console.error);
 ```
 
-Network phải có `POST /api/auth/login` với request header `Accept-Language: vi`, response 400 body `{ success: false, message, errors }` bằng tiếng Việt.
+💡 **Đoạn này làm gì.** `await import('/src/api/index.ts')` nạp module barrel của bạn ngay trong trình duyệt; Vite dev server phục vụ file nguồn nên đường dẫn `/src/...` dùng được (alias `@/` thì **không**, vì Console không biết alias). `const { authApi } = ...` lấy ra biến `authApi` mà bạn đã export. Rồi gọi `signIn` với một email chắc chắn không tồn tại, vì ta đang muốn xem **đường đi của lỗi** chứ chưa cần đăng nhập được. `.then(console.log, console.error)` in kết quả ra: tham số một chạy khi thành công, tham số hai chạy khi thất bại.
+
+6. Chuyển sang tab **Network** để xem request. Nếu chưa thấy dòng nào, chạy lại đoạn code trên khi tab Network đang mở.
+
+**Kết quả đúng phải như thế này.** Trong Network, bấm vào dòng `login`:
+
+- Tab Headers, phần Request Headers: có `Accept-Language: vi`. Đây là chỗ chứng minh mục 2.2 đã chạy.
+- Status: `400 Bad Request`. Đúng, 400 là kết quả **mong muốn** ở đây.
+- Tab Response: body như sau, message bằng tiếng Việt vì backend đọc header ngôn ngữ bạn vừa gửi.
+
+```json
+{
+  "success": false,
+  "message": "Email không tồn tại",
+  "errors": {
+    "message": "Email không tồn tại",
+    "error": "Bad Request",
+    "statusCode": 400
+  },
+  "code": 400
+}
+```
+
+Đổi ngôn ngữ sang EN rồi chạy lại thì `message` thành `Email not found`. Đó là toàn bộ ý nghĩa của mục 2.2.
+
+**Không thấy gì? Đối chiếu bảng này.** Cột giữa là dòng chữ đỏ trong Console.
+
+| Console báo                                              | Nguyên nhân                                                           | Sửa                                                         |
+| -------------------------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `Cannot read properties of undefined (reading 'signIn')` | `authApi` là `undefined`: tên bạn export khác tên trong đoạn code này | Mở `authApi.ts`, đối chiếu từng chữ hoa thường của tên biến |
+| `Cannot read properties of undefined (reading 'then')`   | `signIn` không **trả về** gì. Thân hàm `{ }` mà thiếu `return`        | Xem 💡 ngay dưới bảng                                       |
+| `Failed to fetch` / `ERR_CONNECTION_REFUSED`             | Backend chưa chạy                                                     | Bật `pink-story-api` ở port 3000                            |
+| Lỗi CORS                                                 | FE không chạy ở đúng `http://localhost:4001`                          | Kiểm tra `.env`, đừng mở bằng `127.0.0.1`                   |
+| `Failed to resolve module specifier`                     | Gõ nhầm đường dẫn, hoặc dùng `@/api` thay vì `/src/api/index.ts`      | Dán lại đúng đoạn trên                                      |
+| Console sạch nhưng Network không có dòng nào             | Barrel chưa nối: `src/api/index.ts` thiếu `export * from './auth';`   | Mục 2.6                                                     |
+
+💡 **Bẫy hay gặp nhất: quên `return`.** Hai cách viết arrow function không giống nhau:
+
+```ts
+// Thân rút gọn: tự động trả về giá trị của biểu thức
+signIn: (body: ISignInFormValues) =>
+  axiosService.post<ISignInResponse, ISignInFormValues>(EAuthEndpoint.SIGN_IN, body),
+
+// Thân khối: PHẢI tự viết return, không thì hàm trả về undefined
+signIn: (body: ISignInFormValues) => {
+  return axiosService.post<ISignInResponse, ISignInFormValues>(EAuthEndpoint.SIGN_IN, body);
+},
+```
+
+Nếu viết thân khối `{ }` mà quên `return`, `yarn typecheck` vẫn **sạch**: TypeScript suy ra kiểu trả về là `void`, hợp lệ, không có gì mâu thuẫn để nó báo lỗi. Request vẫn được gửi đi nên Network vẫn có dòng `login`, nhưng nơi gọi nhận về `undefined` nên `.then(...)` nổ. Đây chính là loại lỗi mà checkpoint sinh ra để bắt. Mục 2.6 viết theo dạng thân rút gọn để tránh hẳn cái bẫy này, cứ bám theo đó.
 
 ---
 
@@ -776,7 +837,7 @@ export type IAppMutationOptions<
 #### 4.2. Năm mutation — cùng một khuôn
 
 ```ts
-// useLoginMutation.ts
+// src/react-query/auth/useLoginMutation.ts
 import { useMutation } from '@tanstack/react-query';
 import { authApi } from '@/api';
 import { ISignInFormValues, ISignInResponse } from '@/interfaces';
@@ -808,7 +869,7 @@ Bốn hook còn lại chỉ khác kiểu `body` và kiểu response. Tự viết
 #### 4.3. Query lấy profile (dùng ở bước 12) 🟡
 
 ```ts
-// useGetCurrentUserProfile.ts
+// src/react-query/auth/useGetCurrentUserProfile.ts
 import { useQuery, UseQueryOptions } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 import { useMemo } from 'react';
@@ -1203,7 +1264,7 @@ export * from './Profile';
 #### 7.6. `router/elements/`
 
 ```tsx
-// authElements.tsx — các trang này sẽ tồn tại từ bước 8 đến 13
+// src/router/elements/authElements.tsx — các trang này sẽ tồn tại từ bước 8 đến 13
 import { lazyImport } from '@/utils';
 
 export const { SignIn } = lazyImport(() => import('@/modules/auth'), 'SignIn');
@@ -1218,7 +1279,7 @@ export const { VerifyOtp } = lazyImport(
 ```
 
 ```tsx
-// appElements.tsx
+// src/router/elements/appElements.tsx
 import { lazyImport } from '@/utils';
 
 export const { Home } = lazyImport(() => import('@/pages'), 'Home');
@@ -1226,7 +1287,7 @@ export const { Profile } = lazyImport(() => import('@/pages'), 'Profile');
 ```
 
 ```ts
-// index.ts
+// src/router/elements/index.ts
 export * from './authElements';
 export * from './appElements';
 ```
@@ -1292,7 +1353,7 @@ export * from './accountRoutes';
 ```
 
 ```tsx
-// AppRouter.tsx
+// src/router/AppRouter.tsx
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { NotFound, RootLayout } from '@/components';
 import { accountRoutes, authRoutes, readerRoutes } from './routes';
@@ -1425,7 +1486,7 @@ export const TRANSLATIONS_EN = { ...common, ...auth, ...validation };
 #### 8.1. Styled dùng chung cho cả 5 trang auth
 
 ```ts
-// StyledSignIn.ts
+// src/modules/auth/styled/StyledSignIn.ts
 import styled from 'styled-components';
 import { Colors } from '@/constants';
 
@@ -2378,7 +2439,7 @@ src/components/layouts/RootLayout.tsx       [S]
 ```
 
 ```tsx
-// AuthBootstrap.tsx
+// src/components/one-offs/AuthBootstrap.tsx
 import { FC, PropsWithChildren, useEffect } from 'react';
 import { useGetCurrentUserProfile } from '@/react-query';
 import { useReduxUser } from '@/redux';
