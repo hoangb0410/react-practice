@@ -48,15 +48,15 @@ describe('axiosInstance', () => {
     apiClient.defaults.adapter = originalAdapter;
   });
 
-  it('injects lang query param from i18n', async () => {
-    let capturedParams: Record<string, unknown> = {};
+  it('sends Accept-Language header from i18n', async () => {
+    let capturedLang: unknown;
     setAdapter(async (cfg) => {
-      capturedParams = (cfg.params ?? {}) as Record<string, unknown>;
+      capturedLang = cfg.headers.get('Accept-Language');
       return buildResponse(cfg, 200, { ok: true });
     });
 
     await apiClient.get('/api/ping');
-    expect(capturedParams).toMatchObject({ lang: 'vi' });
+    expect(capturedLang).toBe('vi');
   });
 
   it('unwraps res.data on success', async () => {

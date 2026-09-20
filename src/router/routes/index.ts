@@ -1,2 +1,3 @@
 export * from './authRoutes';
-export * from './appRoutes';
+export * from './readerRoutes';
+export * from './accountRoutes';

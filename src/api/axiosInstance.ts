@@ -19,7 +19,7 @@ export const apiClient = axios.create({
 
 apiClient.interceptors.request.use((req) => {
   const lang = i18n.language || 'en';
-  req.params = { ...(req.params ?? {}), lang };
+  req.headers.set('Accept-Language', lang);
   return req;
 });
 
@@ -70,7 +70,7 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError);
-        emitAuthLogout();
+        if (!originalRequest._skipAuthLogout) emitAuthLogout();
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

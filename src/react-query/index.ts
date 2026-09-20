@@ -1,2 +1,1 @@
-// Modules created by `yarn generate:module` are appended here.
-export {};
+export * from './auth';

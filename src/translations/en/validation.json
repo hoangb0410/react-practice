@@ -9,5 +9,8 @@
   "passwordNumber": "Password must contain at least one number",
   "passwordSymbol": "Password must contain at least one symbol",
   "passwordMismatch": "Passwords do not match",
-  "fullNameRequired": "Full name is required"
+  "fullNameRequired": "Full name is required",
+  "usernameRequired": "Username is required",
+  "usernameMax": "Username must be at most 50 characters",
+  "roleRequired": "Please select an account type"
 }

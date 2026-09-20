@@ -457,7 +457,7 @@ export interface IVerifyRegisterBody {
 }
 
 // ---- Quên mật khẩu (bước 13) ----
-export interface IForgotPasswordBody {
+export interface IForgotPasswordFormValues {
   email: string;
 }
 
@@ -480,6 +480,16 @@ export * from './common.interface';
 export * from './user.interface';
 export * from './auth.interface';
 ```
+
+💡 **Quy ước đặt tên.** Ba hậu tố, ba vai trò:
+
+| Hậu tố        | Là gì                          | Khi nào tách riêng                                     |
+| ------------- | ------------------------------ | ------------------------------------------------------ |
+| `FormValues`  | Đúng các ô người dùng gõ       | Luôn có, nếu màn đó dùng `useForm`                     |
+| `Body`        | Đúng những gì gửi lên API      | Chỉ khi khác `FormValues` (thừa/thiếu field)           |
+| `Response`    | Đúng những gì API trả về       | Khi không tái dùng được interface có sẵn               |
+
+Ở đây `signIn` và `register` có form trùng khít body (backend **có** nhận `confirmPassword`), nên chỉ cần một `FormValues`, không tạo `Body` thừa. Ngược lại `IResetPasswordBody extends IResetPasswordFormValues` vì body có thêm `token` lấy từ URL, không phải ô gõ. Còn `IVerifyRegisterBody` mang hậu tố `Body` vì màn OTP không dùng `useForm`, và `hash` đến từ `location.state`.
 
 💡 **Vì sao `IUserInfo` có nhiều field optional?** Vì login chỉ trả 4 field, còn `GET /api/users` trả đầy đủ. Cùng một interface phải chứa được cả hai trạng thái.
 
@@ -643,7 +653,7 @@ Các module sau (`category`, `story`…) làm y hệt: import `API_PREFIX`, đ�
 ```ts
 // src/api/auth/authApi.ts
 import {
-  IForgotPasswordBody,
+  IForgotPasswordFormValues,
   IRegisterFormValues,
   IRegisterResponse,
   IResetPasswordBody,
@@ -678,8 +688,8 @@ export const authApi = {
 
   refreshToken: () => axiosService.post<void>(EAuthEndpoint.GET_NEW_TOKENS),
 
-  forgotPassword: (body: IForgotPasswordBody) =>
-    axiosService.post<void, IForgotPasswordBody>(
+  forgotPassword: (body: IForgotPasswordFormValues) =>
+    axiosService.post<void, IForgotPasswordFormValues>(
       EAuthEndpoint.FORGOT_PASSWORD,
       body
     ),
@@ -863,7 +873,7 @@ Bốn hook còn lại chỉ khác kiểu `body` và kiểu response. Tự viết
 | --------------------------- | --------------------- | ------------------- | ------------------------ |
 | `useRegisterMutation`       | `IRegisterFormValues` | `IRegisterResponse` | `authApi.register`       |
 | `useVerifyRegisterMutation` | `IVerifyRegisterBody` | `ISignInResponse`   | `authApi.verifyRegister` |
-| `useForgotPasswordMutation` | `IForgotPasswordBody` | `void`              | `authApi.forgotPassword` |
+| `useForgotPasswordMutation` | `IForgotPasswordFormValues` | `void`              | `authApi.forgotPassword` |
 | `useResetPasswordMutation`  | `IResetPasswordBody`  | `void`              | `authApi.resetPassword`  |
 
 #### 4.3. Query lấy profile (dùng ở bước 12) 🟡
@@ -1066,17 +1076,53 @@ registerValidationSchema
 **Files:**
 
 ```
-src/components/common/input/AppInput.tsx     [=]
+src/components/common/input/AppInput.tsx     [S]  thêm dấu * cho field bắt buộc
 src/components/common/button/AppButton.tsx   [=]
 src/hooks/useAppToast.tsx                    [S]
 src/hooks/__tests__/useAppToast.test.tsx     [S]  thêm 1 test
 ```
 
-#### 6.1. Hai component có sẵn (đọc)
+#### 6.1. Hai component có sẵn
 
-**`AppInput`**: `forwardRef`, nhận `label`, `errors?: string` (chuỗi **đã dịch**), `prefix`/`suffix`, và mọi prop của `<input>`. Prop `required` chỉ đẩy xuống `<input>`; dấu `*` và validate là việc của form/zod.
+**`AppButton`** (chỉ đọc): `text`, `variant` (`primary | secondary | ghost | danger`), `loading` (hiện spinner + tự disable), `width`, `icon`.
 
-**`AppButton`**: `text`, `variant` (`primary | secondary | ghost | danger`), `loading` (hiện spinner + tự disable), `width`, `icon`.
+**`AppInput`** (cần sửa một chỗ): `forwardRef`, nhận `label`, `errors?: string` (chuỗi **đã dịch**), `prefix`/`suffix`, và mọi prop của `<input>`.
+
+Bản base đổ thẳng `required` xuống thẻ `<input>` qua `...rest`, nên **màn hình không hiện dấu `*` nào**. Bản thân `required` của HTML cũng không vẽ gì — nó chỉ để trình duyệt chặn submit, mà `<Form noValidate>` ở bước 8 lại tắt đúng cái đó. Kết quả: prop `required` bạn viết ở mọi trang đều vô hình.
+
+Tách `required` ra khỏi `...rest` để vẽ dấu sao, nhưng nhớ truyền lại cho `<input>`:
+
+```tsx
+// src/components/common/input/AppInput.tsx
+export const AppInput = forwardRef<HTMLInputElement, IProps>(
+  // required được lôi ra riêng, KHÔNG còn nằm trong ...rest
+  ({ label, errors, suffix, prefix, required, ...rest }, ref) => (
+    <Wrapper>
+      {label && (
+        <Label>
+          {label}
+          {required && <RequiredMark>*</RequiredMark>}
+        </Label>
+      )}
+      <InputBox $hasError={!!errors}>
+        {prefix}
+        {/* phải truyền lại thủ công, vì đã tách khỏi ...rest ở trên */}
+        <StyledInput ref={ref} required={required} {...rest} />
+        {suffix}
+      </InputBox>
+      {errors && <ErrorText>{errors}</ErrorText>}
+    </Wrapper>
+  )
+);
+
+// thêm styled mới, đặt ngay dưới Label
+const RequiredMark = styled.span`
+  margin-left: 2px;
+  color: ${Colors.red_10};
+`;
+```
+
+💡 **Dấu `*` chỉ là hiển thị.** Việc thật sự chặn form khi bỏ trống vẫn là của schema zod ở bước 5. Hai thứ này độc lập: bạn có thể quên `required` mà zod vẫn báo lỗi, hoặc viết `required` cho một field zod không bắt buộc. Nhớ giữ chúng khớp nhau bằng tay.
 
 #### 6.2. `showServerSuccessMsg(res, fallback)`
 
@@ -1119,7 +1165,7 @@ it('prefers top-level message, then fallback', () => {
 
 💡 Backend luôn trả `message` đã dịch. Ưu tiên nó; `fallback` chỉ dùng khi BE không có. Lỗi thì đã đúng sẵn: `showServerErrorMsg` đọc `err.response.data` qua `getAPIErrorMsg` và bỏ qua 401 (vì 401 đã do interceptor xử lý).
 
-**✅ Checkpoint 6:** `yarn test:run` xanh. Đọc xong `AppInput.tsx`, giải thích được vì sao `$hasError` có dấu `$`.
+**✅ Checkpoint 6:** `yarn test:run` xanh. Đọc xong `AppInput.tsx`, giải thích được vì sao `$hasError` có dấu `$`. Sau bước 8, field nào có `required` sẽ thấy dấu `*` đỏ cạnh label.
 
 ---
 
@@ -2545,7 +2591,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { useAppToast } from '@/hooks';
-import { IForgotPasswordBody } from '@/interfaces';
+import { IForgotPasswordFormValues } from '@/interfaces';
 import { useForgotPasswordMutation } from '@/react-query';
 import { forgotPasswordValidationSchema } from '@/validations';
 
@@ -2560,7 +2606,7 @@ export const useForgotPasswordHooks = () => {
     control,
     handleSubmit,
     formState: { errors, isValid },
-  } = useForm<IForgotPasswordBody>({
+  } = useForm<IForgotPasswordFormValues>({
     mode: 'onTouched',
     defaultValues: { email: '' },
     resolver: zodResolver(forgotPasswordValidationSchema),

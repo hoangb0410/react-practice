@@ -9,5 +9,8 @@
   "passwordNumber": "Mật khẩu phải chứa ít nhất một chữ số",
   "passwordSymbol": "Mật khẩu phải chứa ít nhất một ký tự đặc biệt",
   "passwordMismatch": "Mật khẩu không khớp",
-  "fullNameRequired": "Họ và tên là bắt buộc"
+  "fullNameRequired": "Họ và tên là bắt buộc",
+  "usernameRequired": "Tên đăng nhập là bắt buộc",
+  "usernameMax": "Tên đăng nhập không được vượt quá 50 ký tự",
+  "roleRequired": "Vui lòng chọn loại tài khoản"
 }

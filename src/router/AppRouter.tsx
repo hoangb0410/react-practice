@@ -1,11 +1,16 @@
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { NotFound, RootLayout } from '@/components';
-import { appRoutes, authRoutes } from './routes';
+import { accountRoutes, authRoutes, readerRoutes } from './routes';
 
 const router = createBrowserRouter([
   {
     element: <RootLayout />,
-    children: [authRoutes, appRoutes, { path: '*', element: <NotFound /> }],
+    children: [
+      authRoutes,
+      readerRoutes,
+      accountRoutes,
+      { path: '*', element: <NotFound /> },
+    ],
   },
 ]);
 
