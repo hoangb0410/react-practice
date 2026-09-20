@@ -34,11 +34,18 @@ export const useAppToast = () => {
     });
   };
 
-  const showServerSuccessMsg = (res: unknown) => {
-    const response = res as { data?: { message?: string } };
+  const showServerSuccessMsg = (res: unknown, fallback?: string) => {
+    const response = res as {
+      message?: string;
+      data?: { message?: string } | null;
+    };
     showAppToast({
       type: 'success',
-      content: response?.data?.message ?? t('success'),
+      content:
+        response?.message ??
+        response?.data?.message ??
+        fallback ??
+        t('success'),
     });
   };
 

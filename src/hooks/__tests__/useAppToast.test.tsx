@@ -94,4 +94,17 @@ describe('useAppToast', () => {
 
     expect(toastMock).toHaveBeenCalledTimes(1);
   });
+
+  it('prefers top-level message, then fallback', () => {
+    toastMock.mockReturnValue('toast-id-5');
+    const { result } = renderHook(() => useAppToast());
+    act(() => {
+      result.current.showServerSuccessMsg({ message: 'From BE' }, 'fallback');
+    });
+    expect(toastMock).toHaveBeenLastCalledWith('From BE', expect.anything());
+    act(() => {
+      result.current.showServerSuccessMsg({}, 'fallback');
+    });
+    expect(toastMock).toHaveBeenLastCalledWith('fallback', expect.anything());
+  });
 });

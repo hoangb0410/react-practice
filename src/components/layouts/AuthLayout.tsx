@@ -2,16 +2,15 @@ import { FC } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import styled from 'styled-components';
 import { LanguageSwitcher } from '@/components';
-import { Colors, ROUTES } from '@/constants';
+import { Colors } from '@/constants';
 import { useReduxUser } from '@/redux';
+import { getDefaultRouteByRole } from '@/utils';
 
 /** Layout for public auth pages. Signed-in users are sent back to the app. */
 export const AuthLayout: FC = () => {
   const { user } = useReduxUser();
 
-  if (user) {
-    return <Navigate to={ROUTES.ROOT} replace />;
-  }
+  if (user) return <Navigate to={getDefaultRouteByRole(user.role)} replace />;
 
   return (
     <Wrapper>

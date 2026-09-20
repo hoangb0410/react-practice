@@ -17,6 +17,7 @@ declare module '*.scss' {
 declare module 'axios' {
   export interface AxiosRequestConfig {
     _retry?: boolean;
+    _skipAuthLogout?: boolean;
   }
 }
 

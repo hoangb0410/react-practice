@@ -4,3 +4,5 @@ export const PHONE_REGEX = /^\+?[1-9]\d{1,14}$/;
 
 export const DEFAULT_PAGE = 1;
 export const DEFAULT_LIMIT = 10;
+
+export const API_PREFIX = '/api';
