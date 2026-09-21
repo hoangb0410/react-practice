@@ -882,7 +882,6 @@ Bốn hook còn lại chỉ khác kiểu `body` và kiểu response. Tự viết
 // src/react-query/auth/useGetCurrentUserProfile.ts
 import { useQuery, UseQueryOptions } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
-import { useMemo } from 'react';
 import { authApi } from '@/api';
 import { IAppResponse, IUserInfo } from '@/interfaces';
 
@@ -904,10 +903,12 @@ export const useGetCurrentUserProfile = ({ configs }: IQueryParams = {}) => {
     ...configs, // ví dụ: enabled: !!user
   });
 
-  const userInfo = useMemo(() => data?.data ?? null, [data]);
+  const userInfo = data?.data ?? null;
   return { userInfo, isFetching, isSuccess, isError, error };
 };
 ```
+
+💡 **Vì sao không cần `useMemo` ở dòng `userInfo`?** `data?.data` chỉ là đọc một thuộc tính, không tạo object mới — hễ `data` còn cùng tham chiếu thì `data.data` cũng vậy, mà React Query vốn đã giữ `data` ổn định khi chưa refetch. Bọc `useMemo` không tiết kiệm phép tính nào, cũng không ổn định thêm gì. Phản xạ "thấy giá trị được dùng trong dependency của `useEffect` là nhét `useMemo`" (ở đây là `AuthBootstrap` bước 12) không sai nhưng thừa: chỉ cần memo khi giá trị **được tạo mới** mỗi render (object/array literal, `.map()`, `.filter()`) hoặc khi phép tính thật sự nặng.
 
 ```ts
 // src/react-query/auth/index.ts
@@ -2706,11 +2707,151 @@ export const useResetPasswordHooks = () => {
 
 #### 13.3. Hai trang
 
-`ForgotPassword.tsx`: nếu `sentToEmail` có giá trị → hiện `forgotPasswordSentTitle`, `forgotPasswordSentSubtitle` (interpolate `email`), nút `resendLink` (variant `secondary`, gọi `onResend`) và link `backToSignIn`. Ngược lại → form một ô email (dùng `Controller` + `AppInput` như SignIn) với nút `sendResetLink`.
+Cả hai đều dùng `Title`, `Subtitle`, `Form`, `FooterText` từ `../styled` và `errMsg` giống hệt `SignIn.tsx`.
 
-`ResetPassword.tsx`: nếu `missingToken` → `<Navigate to={ROUTES.FORGOT_PASSWORD} replace />`. Ngược lại → hai ô `newPassword`, `confirmNewPassword` (type `password`), nút `resetPasswordAction`, footer có hai link `requestNewLink` và `backToSignIn`.
+**`ForgotPassword.tsx`** — hai trạng thái trong cùng một trang, quyết định bởi `sentToEmail`:
 
-Cả hai đều dùng `Title`, `Subtitle`, `Form`, `FooterText` từ `../styled`. Đối chiếu `pink-story-app/src/modules/auth/pages/{ForgotPassword,ResetPassword}.tsx` nếu cần, chúng dùng đúng bộ styled và key i18n này.
+```tsx
+// src/modules/auth/pages/ForgotPassword.tsx
+import { Controller, FieldError } from 'react-hook-form';
+import { Link } from 'react-router-dom';
+import { AppButton, AppInput } from '@/components';
+import { ROUTES } from '@/constants';
+import { useForgotPasswordHooks } from '../hooks';
+import { FooterText, Form, Subtitle, Title } from '../styled';
+
+export const ForgotPassword = () => {
+  const { t, control, errors, isPending, onSubmit, onResend, sentToEmail } =
+    useForgotPasswordHooks();
+  const errMsg = (e?: FieldError) => (e?.message ? t(e.message) : undefined);
+
+  // Đã gửi mail → đổi hẳn nội dung, không hiện form nữa
+  if (sentToEmail)
+    return (
+      <>
+        <Title>{t('forgotPasswordSentTitle')}</Title>
+        {/* interpolation {{email}} */}
+        <Subtitle>
+          {t('forgotPasswordSentSubtitle', { email: sentToEmail })}
+        </Subtitle>
+        <AppButton
+          variant="secondary"
+          text={t('resendLink')}
+          loading={isPending}
+          onClick={onResend}
+        />
+        <FooterText>
+          <Link to={ROUTES.SIGN_IN}>{t('backToSignIn')}</Link>
+        </FooterText>
+      </>
+    );
+
+  return (
+    <>
+      <Title>{t('forgotPasswordTitle')}</Title>
+      <Subtitle>{t('forgotPasswordSubtitle')}</Subtitle>
+      <Form onSubmit={onSubmit} noValidate>
+        <Controller
+          name="email"
+          control={control}
+          render={({ field }) => (
+            <AppInput
+              {...field}
+              required
+              type="email"
+              label={t('emailAddress')}
+              placeholder={t('enterYourEmail')}
+              onBlur={(e) => {
+                field.onBlur();
+                field.onChange(e.target.value.trim());
+              }}
+              errors={errMsg(errors.email)}
+            />
+          )}
+        />
+        <AppButton type="submit" text={t('sendResetLink')} loading={isPending} />
+      </Form>
+      <FooterText>
+        <Link to={ROUTES.SIGN_IN}>{t('backToSignIn')}</Link>
+      </FooterText>
+    </>
+  );
+};
+```
+
+> ⚠️ Nút `resendLink` **không** đặt trong `<Form>` và **không** có `type="submit"` — nó gọi thẳng `onResend`, vốn dùng lại email đã lưu trong `sentToEmail` chứ không đọc từ ô input (ô đó đã biến mất).
+
+**`ResetPassword.tsx`** — chặn cửa bằng `missingToken` trước, rồi mới tới form:
+
+```tsx
+// src/modules/auth/pages/ResetPassword.tsx
+import { Controller, FieldError } from 'react-hook-form';
+import { Link, Navigate } from 'react-router-dom';
+import { AppButton, AppInput } from '@/components';
+import { ROUTES } from '@/constants';
+import { useResetPasswordHooks } from '../hooks';
+import { FooterText, Form, Subtitle, Title } from '../styled';
+
+export const ResetPassword = () => {
+  const { t, control, errors, isPending, onSubmit, missingToken } =
+    useResetPasswordHooks();
+  const errMsg = (e?: FieldError) => (e?.message ? t(e.message) : undefined);
+
+  // Vào thẳng /reset-password không kèm ?token= → quay về trang xin link
+  if (missingToken) return <Navigate to={ROUTES.FORGOT_PASSWORD} replace />;
+
+  return (
+    <>
+      <Title>{t('resetPasswordTitle')}</Title>
+      <Subtitle>{t('resetPasswordSubtitle')}</Subtitle>
+      <Form onSubmit={onSubmit} noValidate>
+        <Controller
+          name="newPassword"
+          control={control}
+          render={({ field }) => (
+            <AppInput
+              {...field}
+              required
+              type="password"
+              label={t('newPassword')}
+              placeholder={t('enterNewPassword')}
+              errors={errMsg(errors.newPassword)}
+            />
+          )}
+        />
+        <Controller
+          name="confirmNewPassword"
+          control={control}
+          render={({ field }) => (
+            <AppInput
+              {...field}
+              required
+              type="password"
+              label={t('confirmNewPassword')}
+              placeholder={t('enterConfirmNewPassword')}
+              errors={errMsg(errors.confirmNewPassword)}
+            />
+          )}
+        />
+        <AppButton
+          type="submit"
+          text={t('resetPasswordAction')}
+          loading={isPending}
+        />
+      </Form>
+      <FooterText>
+        <Link to={ROUTES.FORGOT_PASSWORD}>{t('requestNewLink')}</Link>
+        {' · '}
+        <Link to={ROUTES.SIGN_IN}>{t('backToSignIn')}</Link>
+      </FooterText>
+    </>
+  );
+};
+```
+
+💡 **Vì sao ô email dùng `onBlur` trim mà ô password thì không?** Email thừa dấu cách đầu/cuối là do copy-paste, cắt đi là đúng ý người dùng. Mật khẩu thì dấu cách **là một phần của mật khẩu** — tự ý cắt sẽ khiến đăng nhập thất bại mà không hiểu vì sao.
+
+Barrel: thêm cả hai vào `src/modules/auth/pages/index.ts` (hoặc file index tương ứng của module).
 
 #### 13.4. Route
 
