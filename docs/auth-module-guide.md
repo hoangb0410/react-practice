@@ -2092,7 +2092,7 @@ Form chỉ có 1 field nên codebase **không dùng react-hook-form**, dùng `us
 
 ```ts
 import { useQueryClient } from '@tanstack/react-query';
-import { FormEvent, useState } from 'react';
+import { SubmitEvent, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAppToast } from '@/hooks';
@@ -2131,7 +2131,7 @@ export const useVerifyOtpHooks = () => {
     },
   });
 
-  const onSubmit = (e?: FormEvent) => {
+  const onSubmit = (e?: SubmitEvent<HTMLFormElement>) => {
     e?.preventDefault(); // form thuần → tự chặn reload trang
     if (!hash || !otp.trim()) return;
     verify({ body: { hash, otp: otp.trim() } });
@@ -2140,6 +2140,8 @@ export const useVerifyOtpHooks = () => {
   return { t, email, otp, setOtp, isPending, onSubmit, missingHash: !hash };
 };
 ```
+
+💡 **Vì sao `SubmitEvent` chứ không phải `FormEvent`?** Từ `@types/react` v19, `FormEvent` bị đánh dấu deprecated với lý do "FormEvent doesn't actually exist" — DOM thật không có event nào tên như vậy, nó chỉ là type gộp mà React types tự đặt ra để bao cả `submit`, `change`, `input`, `reset`. React 19 tách lại cho khớp DOM: `onSubmit` → `SubmitEvent`, `onChange` → `ChangeEvent`, `onInput` → `InputEvent`, không rõ loại thì `SyntheticEvent`. Lưu ý đây là `SubmitEvent` import từ `'react'` (che global `SubmitEvent` của DOM), và nó khai báo sẵn `target: EventTarget & HTMLFormElement`.
 
 #### 10.2. `VerifyOtp.tsx`
 
